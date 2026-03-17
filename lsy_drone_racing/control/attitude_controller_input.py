@@ -97,20 +97,20 @@ class AttitudeController(Controller):
                 print("Button", i, "pressed")
 
         deadzone = 0.1
-        x1 = self._apply_deadzone(self._joystick.get_axis(0), deadzone)
-        y1 = self._apply_deadzone(self._joystick.get_axis(1), deadzone)
+        stick_l_x = self._apply_deadzone(self._joystick.get_axis(0), deadzone)
+        # stick_l_y = self._apply_deadzone(self._joystick.get_axis(1), deadzone)
         lt = self._apply_deadzone(self._joystick.get_axis(2), deadzone)
-        x2 = self._apply_deadzone(self._joystick.get_axis(3), deadzone)
-        y2 = self._apply_deadzone(self._joystick.get_axis(4), deadzone)
+        stick_r_x = self._apply_deadzone(self._joystick.get_axis(3), deadzone)
+        stick_r_y = self._apply_deadzone(self._joystick.get_axis(4), deadzone)
         rt = self._apply_deadzone(self._joystick.get_axis(5), deadzone)
 
         # print("Left stick:", x1, y1, ", Right stick:", x2, y2, ", LT and RT", lt, rt)
         max_angle = np.pi / 4
         max_angle_rate = np.pi / self.freq
 
-        self._roll = 0.9 * (self._roll + x2 * max_angle_rate)
-        self._pitch = 0.9 * (self._pitch + -y2 * max_angle_rate)
-        self._yaw = self._yaw + -x1 * max_angle_rate
+        self._roll = 0.9 * (self._roll + stick_r_x * max_angle_rate)
+        self._pitch = 0.9 * (self._pitch + -stick_r_y * max_angle_rate)
+        self._yaw = self._yaw + -stick_l_x * max_angle_rate
         euler = [self._roll, self._pitch, self._yaw]
         euler[:2] = np.clip(euler[:2], -max_angle, max_angle)
 
