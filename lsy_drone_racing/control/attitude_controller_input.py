@@ -10,13 +10,11 @@ Note that the trajectory uses pre-defined waypoints instead of dynamically gener
 
 from __future__ import annotations  # Python 3.10 type hints
 
-import math
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pygame
 from drone_models.core import load_params
-from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation as R
 
 from lsy_drone_racing.control import Controller

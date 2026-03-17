@@ -11,7 +11,6 @@ At each time step, the controller computes the next desired position by evaluati
 
 from __future__ import annotations  # Python 3.10 type hints
 
-from operator import ne
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -139,14 +138,16 @@ class TrajectoryController(Controller):
         distance_to_gate_edge1 = np.linalg.norm(gate_edge1 - target_pos_xy)
         distance_to_gate_edge2 = np.linalg.norm(gate_edge2 - target_pos_xy)
 
-        # If too close to either gate edge, project target_pos onto the gate center line (between gate_edge1 and gate_edge2)
+        # If too close to either gate edge, project target_pos onto the gate center line
+        # (between gate_edge1 and gate_edge2)
         if distance_to_gate_edge1 < min_gate_dist or distance_to_gate_edge2 < min_gate_dist:
-            print(
-                f"Too close to gate edge! {target_pos=}, {distance_to_gate_edge1=}, {distance_to_gate_edge2=}"
-            )
+            e = "Too close to gate edge!"
+            e += f" {target_pos=}, {distance_to_gate_edge1=}, {distance_to_gate_edge2=}"
+            print(e)
             # Move target_pos onto the gate center line using gate normal
             gate_center_line_point = gate_center_xy
-            # Project target_pos_xy onto the gate center line (defined by gate_center_xy and gate_norm in x-y)
+            # Project target_pos_xy onto the gate center line
+            # (defined by gate_center_xy and gate_norm in x-y)
             gate_norm_xy = gate_norm.copy()
             gate_norm_xy[2] = 0
             gate_norm_xy /= np.linalg.norm(gate_norm_xy) + 1e-6
@@ -167,17 +168,17 @@ class TrajectoryController(Controller):
         gate_lower_bar = gate_pos.copy()
         gate_lower_bar[2] -= gate_height / 2
 
-        distance_to_upper_bar = abs(target_pos[2] - gate_upper_bar[2])
-        distance_to_lower_bar = abs(target_pos[2] - gate_lower_bar[2])
+        distance_to_bar_up = abs(target_pos[2] - gate_upper_bar[2])
+        distance_to_bar_low = abs(target_pos[2] - gate_lower_bar[2])
 
         # If too close to either bar, project target_pos z onto gate center z
         smoothing_factor = 0.95
         if (
-            distance_to_upper_bar < min_gate_dist or distance_to_lower_bar < min_gate_dist
+            distance_to_bar_up < min_gate_dist or distance_to_bar_low < min_gate_dist
         ) and np.linalg.norm(gate_pos - target_pos) < 1.0:
-            print(
-                f"Too close to gate bar! {target_pos[2]=}, {gate_pos[2]=}, {distance_to_upper_bar=}, {distance_to_lower_bar=}"
-            )
+            e = "Too close to gate bar!"
+            e += f" {target_pos[2]=}, {gate_pos[2]=}, {distance_to_bar_up=}, {distance_to_bar_low=}"
+            print(e)
             # Move target_pos z to gate center z
             self.delta_z = smoothing_factor * self.delta_z + (1 - smoothing_factor) * (
                 gate_pos[2] - target_pos[2]
