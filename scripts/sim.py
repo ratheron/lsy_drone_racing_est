@@ -18,6 +18,7 @@ import gymnasium
 import jax.numpy as jp
 import numpy as np
 from gymnasium.wrappers.jax_to_numpy import JaxToNumpy
+from crazyflow.sim.visualize import draw_points
 
 from lsy_drone_racing.utils import load_config, load_controller
 
@@ -99,6 +100,8 @@ def simulate(
             if terminated or truncated or controller_finished:
                 break
             if config.sim.render:  # Render the sim if selected.
+                if config.env.control_mode == "state":
+                    draw_points(env.unwrapped.sim, action[None, :3])
                 if ((i * fps) % config.env.freq) < fps:
                     env.render()
             i += 1

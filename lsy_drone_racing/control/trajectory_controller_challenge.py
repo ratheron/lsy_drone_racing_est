@@ -11,6 +11,7 @@ At each time step, the controller computes the next desired position by evaluati
 
 from __future__ import annotations  # Python 3.10 type hints
 
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -21,6 +22,9 @@ from lsy_drone_racing.control import Controller
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
 
 
 class TrajectoryController(Controller):
@@ -54,7 +58,9 @@ class TrajectoryController(Controller):
         )
         self.t_total = 30
         t = np.linspace(0, self.t_total, len(waypoints))
-        self.trajectory = CubicSpline(t, waypoints)
+        self.trajectory = CubicSpline(
+            t, waypoints, bc_type=((1, [0.0, 0.0, 0.5]), (2, [0.0, 0.0, 0.0]))
+        )
         self._tick = 0
         self._freq = config.env.freq
         self._finished = False
@@ -76,6 +82,9 @@ class TrajectoryController(Controller):
                 array.
         """
         i = min(self._tick / self._freq, self.t_total)
+        if i >= self.t_total:  # Maximum duration reached
+            self._finished = True
+
         target_pos = self.trajectory(i)
         #### Obstacle avoidance
         min_obstacle_dist = 0.25
@@ -84,28 +93,28 @@ class TrajectoryController(Controller):
         closest_obstacle_pos[2] = 0  # Only consider x-y plane for obstacle avoidance
         target_pos_xy = target_pos.copy()
         target_pos_xy[2] = 0
-        # print(f"{closest_obstacle_pos=}, {np.linalg.norm(closest_obstacle_pos - target_pos_xy)=}")
+        # logger.debug(f"{closest_obstacle_pos=}, {np.linalg.norm(closest_obstacle_pos - target_pos_xy)=}")
         distance_to_obstacle = np.linalg.norm(closest_obstacle_pos - target_pos_xy)
         if distance_to_obstacle < min_obstacle_dist:
-            print(f"Too close to an obstacle! {target_pos=}, {distance_to_obstacle=}")
+            logger.debug(f"Too close to an obstacle! {target_pos=}, {distance_to_obstacle=}")
             # Move outwards to avoid obstacle
             normal_vector = closest_obstacle_pos - target_pos
             normal_vector[2] = 0  # Only move in x-y plane
             normal_vector /= np.linalg.norm(normal_vector) + 1e-6
-            print(f"Normal vector: {normal_vector}")
+            logger.debug(f"Normal vector: {normal_vector}")
             target_pos_delta = normal_vector * (distance_to_obstacle - min_obstacle_dist)
-            print(f"{target_pos=}, {target_pos + target_pos_delta=}")
+            logger.debug(f"{target_pos=}, {target_pos + target_pos_delta=}")
             target_pos += target_pos_delta
 
         #### Gate hit avoidance
         min_gate_dist = 0.2
         closest_gate_id = np.argmin(np.linalg.norm(obs["gates_pos"] - target_pos, axis=-1))
         gates_visited = np.array([*obs["gates_visited"], False])
-        print(f"{gates_visited=}")
+        # logger.debug(f"{gates_visited=}")
         next_gate_id = np.where(~gates_visited)[0][0]
         if next_gate_id >= len(obs["gates_pos"]):
             next_gate_id = len(obs["gates_pos"]) - 1
-        print(next_gate_id)
+        logger.debug(f"{next_gate_id=}, {gates_visited=}")
         target_pos_xy = target_pos.copy()
         target_pos_xy[2] = 0
         # Compute gate edges from gate_quat and known width
@@ -115,8 +124,9 @@ class TrajectoryController(Controller):
 
         # Convert quaternion to rotation matrix
         rot = R.from_quat(gate_quat)
-        gate_right = rot.apply([1, 0, 0])
-        gate_norm = rot.apply([0, 0, 1])
+        gate_right = rot.apply([0, 1, 0])
+        gate_norm = rot.apply([1, 0, 0])
+        logger.debug(f"{gate_norm=}, {gate_right=}")
 
         # Gate edges in world coordinates
         edge_offset = gate_right * (gate_width / 2)
@@ -137,13 +147,14 @@ class TrajectoryController(Controller):
 
         distance_to_gate_edge1 = np.linalg.norm(gate_edge1 - target_pos_xy)
         distance_to_gate_edge2 = np.linalg.norm(gate_edge2 - target_pos_xy)
+        logger.debug(f"{distance_to_gate_edge1=}, {distance_to_gate_edge2=}")
 
         # If too close to either gate edge, project target_pos onto the gate center line
         # (between gate_edge1 and gate_edge2)
         if distance_to_gate_edge1 < min_gate_dist or distance_to_gate_edge2 < min_gate_dist:
             e = "Too close to gate edge!"
             e += f" {target_pos=}, {distance_to_gate_edge1=}, {distance_to_gate_edge2=}"
-            print(e)
+            logger.debug(e)
             # Move target_pos onto the gate center line using gate normal
             gate_center_line_point = gate_center_xy
             # Project target_pos_xy onto the gate center line
@@ -156,13 +167,12 @@ class TrajectoryController(Controller):
             proj_point = gate_center_line_point + gate_norm_xy * proj_length
             # Set target_pos x-y to projected point, keep z unchanged
             target_pos[:2] = proj_point[:2]
-            print(f"Moved target_pos onto gate center line using gate normal: {target_pos}")
+            logger.debug(f"Moved target_pos onto gate center line using gate normal: {target_pos}")
 
         # --- Upper and lower gate bar avoidance ---
         # Assume gate height is known (e.g., 0.4m)
         gate_height = 0.4
         # Gate upper and lower bar positions in world coordinates
-        gate_pos = obs["gates_pos"][next_gate_id]
         gate_upper_bar = gate_pos.copy()
         gate_upper_bar[2] += gate_height / 2
         gate_lower_bar = gate_pos.copy()
@@ -178,19 +188,18 @@ class TrajectoryController(Controller):
         ) and np.linalg.norm(gate_pos - target_pos) < 1.0:
             e = "Too close to gate bar!"
             e += f" {target_pos[2]=}, {gate_pos[2]=}, {distance_to_bar_up=}, {distance_to_bar_low=}"
-            print(e)
+            logger.debug(e)
             # Move target_pos z to gate center z
             self.delta_z = smoothing_factor * self.delta_z + (1 - smoothing_factor) * (
                 gate_pos[2] - target_pos[2]
             )
             target_pos[2] += self.delta_z
-            print(f"Moved target_pos onto gate center z: {target_pos}, {self.delta_z=}")
+            logger.debug(f"Moved target_pos onto gate center z: {target_pos}, {self.delta_z=}")
         else:
             self.delta_z *= smoothing_factor
 
-        print(f"{gate_pos=}, {gate_edge1=}, {gate_edge2=}")
-        if i >= self.t_total:  # Maximum duration reached
-            self._finished = True
+        logger.debug(f"{gate_pos=}, {gate_edge1=}, {gate_edge2=}")
+
         return np.concatenate((target_pos, np.zeros(10)), dtype=np.float32)
 
     def step_callback(
@@ -209,5 +218,3 @@ class TrajectoryController(Controller):
         """
         self._tick += 1
         return self._finished
-        """Reset the time step counter."""
-        self._tick = 0

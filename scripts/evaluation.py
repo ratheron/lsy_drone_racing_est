@@ -7,7 +7,7 @@ Note:
 import logging
 from pathlib import Path
 
-import pandas as pd
+import numpy as np
 from sim import simulate
 
 from lsy_drone_racing.utils import load_config
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Run the simulation N times and save the results as 'submission.csv'."""
-    n_runs = 20
+    n_runs = 10
     config_file = "level2.toml"
     config = load_config(Path(__file__).parents[1] / "config" / config_file)
     assert config.sim.physics == "first_principles", (
@@ -34,13 +34,15 @@ def main():
         logger.info("All runs completed successfully!")
 
     # Abort if more than half of the runs failed
-    if n_failed > n_runs / 2:
+    if (success_rate := 1 - n_failed / n_runs) < 0.5:
         logger.error("More than 50% of all runs failed! Aborting submission.")
         raise RuntimeError("Too many runs failed!")
 
-    ep_times = [x for x in ep_times if x is not None]
-    data = {"ID": [i for i in range(len(ep_times))], "submission_time": ep_times}
-    pd.DataFrame(data).to_csv("submission.csv", index=False)
+    successful_times_avg = np.mean([x for x in ep_times if x is not None])
+    logger.info(f"Average Time: successful_times_avg (s): {successful_times_avg}")
+    logger.info(f"Success Rate: {success_rate * 100}%")
+    with open(Path(__file__).parents[1] / "competition.csv", "w") as f:
+        f.write(f"{np.mean(successful_times_avg)},{success_rate},")
 
 
 if __name__ == "__main__":
