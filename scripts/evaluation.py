@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Run the simulation N times and save the results as 'submission.csv'."""
-    n_runs = 10
+    n_runs = 1
     config_file = "level2.toml"
     config = load_config(Path(__file__).parents[1] / "config" / config_file)
     assert config.sim.physics == "first_principles", (
@@ -41,8 +41,10 @@ def main():
     successful_times_avg = np.mean([x for x in ep_times if x is not None])
     logger.info(f"Average Time: successful_times_avg (s): {successful_times_avg}")
     logger.info(f"Success Rate: {success_rate * 100}%")
-    with open(Path(__file__).parents[1] / "competition.csv", "w") as f:
+    file = Path(__file__).parents[1] / "evaluation.csv"
+    with open(file, "w") as f:
         f.write(f"{np.mean(successful_times_avg)},{success_rate},")
+    logger.info(f"Results saved in {file}")
 
 
 if __name__ == "__main__":
