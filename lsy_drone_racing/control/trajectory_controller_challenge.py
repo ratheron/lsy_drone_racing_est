@@ -93,7 +93,7 @@ class TrajectoryController(Controller):
         closest_obstacle_pos[2] = 0  # Only consider x-y plane for obstacle avoidance
         target_pos_xy = target_pos.copy()
         target_pos_xy[2] = 0
-        # logger.debug(f"{closest_obstacle_pos=}, {np.linalg.norm(closest_obstacle_pos - target_pos_xy)=}")
+        # logger.debug(f"{closest_obstacle_pos=}")
         distance_to_obstacle = np.linalg.norm(closest_obstacle_pos - target_pos_xy)
         if distance_to_obstacle < min_obstacle_dist:
             logger.debug(f"Too close to an obstacle! {target_pos=}, {distance_to_obstacle=}")

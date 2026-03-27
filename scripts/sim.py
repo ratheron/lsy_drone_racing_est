@@ -17,8 +17,8 @@ import fire
 import gymnasium
 import jax.numpy as jp
 import numpy as np
-from gymnasium.wrappers.jax_to_numpy import JaxToNumpy
 from crazyflow.sim.visualize import draw_points
+from gymnasium.wrappers.jax_to_numpy import JaxToNumpy
 
 from lsy_drone_racing.utils import load_config, load_controller
 
